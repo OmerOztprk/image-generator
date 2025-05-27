@@ -26,21 +26,15 @@
             <div id="statusText" class="status-text">Görsel oluşturmak için yukarıya bir prompt yazın</div>
             
             <div id="imageContainer" class="image-container hidden">
-                <div class="partial-images">
-                    <div class="partial-image-slot" id="partial1">
-                        <div class="progress-indicator">Aşama 1</div>
-                    </div>
-                    <div class="partial-image-slot" id="partial2">
-                        <div class="progress-indicator">Aşama 2</div>
-                    </div>
-                    <div class="partial-image-slot" id="partial3">
-                        <div class="progress-indicator">Aşama 3</div>
+                <div class="progress-info">
+                    <div id="progressText" class="progress-text">Başlatılıyor...</div>
+                    <div id="progressBar" class="progress-bar">
+                        <div id="progressFill" class="progress-fill"></div>
                     </div>
                 </div>
                 
-                <div id="finalImageContainer" class="final-image-container">
-                    <div class="final-label">Nihai Görsel</div>
-                    <div id="finalImage" class="final-image-placeholder">
+                <div id="imageDisplay" class="image-display">
+                    <div id="imageContent" class="image-content">
                         Görsel oluşturuluyor...
                     </div>
                 </div>

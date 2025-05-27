@@ -4,15 +4,13 @@ class StreamImageGenerator {
         this.generateBtn = document.getElementById('generateBtn');
         this.statusText = document.getElementById('statusText');
         this.imageContainer = document.getElementById('imageContainer');
-        this.finalImage = document.getElementById('finalImage');
-
-        this.partialSlots = {
-            1: document.getElementById('partial1'),
-            2: document.getElementById('partial2'),
-            3: document.getElementById('partial3')
-        };
+        this.imageContent = document.getElementById('imageContent');
+        this.progressText = document.getElementById('progressText');
+        this.progressFill = document.getElementById('progressFill');
 
         this.buffer = ''; // Buffer for incomplete data
+        this.currentStage = 0;
+        this.totalStages = 4; // 0, 1, 2, 3 (4 aşama)
 
         this.initEventListeners();
     }
@@ -100,7 +98,7 @@ class StreamImageGenerator {
 
         switch (data.type) {
             case 'partial':
-                this.showPartialImage(data.index, data.image);
+                this.updatePartialImage(data.index, data.image);
                 break;
 
             case 'completed':
@@ -118,33 +116,25 @@ class StreamImageGenerator {
         }
     }
 
-    showPartialImage(index, imageBase64) {
-        // Index 0'dan başlıyor, 1'e çevirelim
-        const adjustedIndex = index + 1;
-        const slot = this.partialSlots[adjustedIndex];
+    updatePartialImage(index, imageBase64) {
+        this.currentStage = index + 1;
+        this.updateProgress();
 
-        if (slot && imageBase64) {
-            slot.classList.remove('loading');
-
-            // Validate base64 data
+        if (imageBase64) {
             try {
                 const img = document.createElement('img');
                 img.src = `data:image/png;base64,${imageBase64}`;
-                img.alt = `Kısmi görsel ${adjustedIndex}`;
-                img.style.width = '100%';
-                img.style.height = '100%';
-                img.style.objectFit = 'cover';
-                img.style.borderRadius = '10px';
+                img.alt = `Aşama ${this.currentStage}`;
+                img.className = 'image-fade-in';
 
                 img.onload = () => {
-                    slot.innerHTML = '';
-                    slot.appendChild(img);
-                    this.showStatus(`Aşama ${adjustedIndex} tamamlandı`);
+                    this.imageContent.innerHTML = '';
+                    this.imageContent.appendChild(img);
+                    this.showStatus(`Aşama ${this.currentStage}/${this.totalStages} tamamlandı`);
                 };
 
                 img.onerror = () => {
-                    console.error(`Invalid image data for partial ${adjustedIndex}`);
-                    slot.innerHTML = `<div class="progress-indicator">Aşama ${adjustedIndex} - Hata</div>`;
+                    console.error(`Invalid image data for stage ${this.currentStage}`);
                 };
 
             } catch (e) {
@@ -154,22 +144,23 @@ class StreamImageGenerator {
     }
 
     showFinalImage(imageBase64) {
+        this.currentStage = this.totalStages;
+        this.updateProgress();
+
         if (imageBase64) {
-            this.finalImage.classList.remove('loading');
+            this.imageContent.classList.remove('loading');
 
             try {
                 const img = document.createElement('img');
                 img.src = `data:image/png;base64,${imageBase64}`;
                 img.alt = 'Nihai görsel';
-                img.style.width = '100%';
-                img.style.height = '100%';
-                img.style.objectFit = 'cover';
-                img.style.borderRadius = '10px';
+                img.className = 'image-fade-in';
 
                 img.onload = () => {
-                    this.finalImage.innerHTML = '';
-                    this.finalImage.appendChild(img);
+                    this.imageContent.innerHTML = '';
+                    this.imageContent.appendChild(img);
                     this.showStatus('Görsel başarıyla oluşturuldu!');
+                    this.progressText.textContent = 'Tamamlandı!';
                 };
 
                 img.onerror = () => {
@@ -183,33 +174,40 @@ class StreamImageGenerator {
         }
     }
 
+    updateProgress() {
+        const percentage = (this.currentStage / this.totalStages) * 100;
+        this.progressFill.style.width = `${percentage}%`;
+        this.progressText.textContent = `Aşama ${this.currentStage}/${this.totalStages}`;
+    }
+
     startGeneration() {
         this.generateBtn.disabled = true;
         this.generateBtn.textContent = 'Oluşturuluyor...';
+        this.currentStage = 0;
 
         this.showStatus('Görsel oluşturma başlatılıyor...');
         this.imageContainer.classList.remove('hidden');
 
-        // Reset partial images
-        Object.values(this.partialSlots).forEach((slot, index) => {
-            slot.classList.add('loading');
-            slot.innerHTML = `<div class="progress-indicator">Aşama ${index + 1}</div>`;
-        });
+        // Reset image display
+        this.imageContent.classList.add('loading');
+        this.imageContent.innerHTML = 'Görsel oluşturuluyor...';
 
-        // Reset final image
-        this.finalImage.classList.add('loading');
-        this.finalImage.innerHTML = 'Nihai görsel oluşturuluyor...';
+        // Reset progress
+        this.progressFill.style.width = '0%';
+        this.progressText.textContent = 'Başlatılıyor...';
     }
 
     finishGeneration() {
         this.generateBtn.disabled = false;
         this.generateBtn.textContent = 'Görsel Oluştur';
+        this.imageContent.classList.remove('loading');
     }
 
     resetUI() {
         this.generateBtn.disabled = false;
         this.generateBtn.textContent = 'Görsel Oluştur';
         this.imageContainer.classList.add('hidden');
+        this.currentStage = 0;
     }
 
     showStatus(message) {
