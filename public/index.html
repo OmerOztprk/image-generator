@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stream Image Generator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AI Görsel Oluşturucu</h1>
+            <p>GPT-4.1 ile gerçek zamanlı görsel üretimi</p>
+        </header>
+
+        <div class="input-section">
+            <textarea 
+                id="promptInput" 
+                placeholder="Oluşturmak istediğiniz görseli detaylı olarak açıklayın..."
+                rows="3"
+            ></textarea>
+            <button id="generateBtn">Görsel Oluştur</button>
+        </div>
+
+        <div class="generation-area">
+            <div id="statusText" class="status-text">Görsel oluşturmak için yukarıya bir prompt yazın</div>
+            
+            <div id="imageContainer" class="image-container hidden">
+                <div class="partial-images">
+                    <div class="partial-image-slot" id="partial1">
+                        <div class="progress-indicator">Aşama 1</div>
+                    </div>
+                    <div class="partial-image-slot" id="partial2">
+                        <div class="progress-indicator">Aşama 2</div>
+                    </div>
+                    <div class="partial-image-slot" id="partial3">
+                        <div class="progress-indicator">Aşama 3</div>
+                    </div>
+                </div>
+                
+                <div id="finalImageContainer" class="final-image-container">
+                    <div class="final-label">Nihai Görsel</div>
+                    <div id="finalImage" class="final-image-placeholder">
+                        Görsel oluşturuluyor...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
