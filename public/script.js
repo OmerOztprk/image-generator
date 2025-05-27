@@ -1,5 +1,6 @@
 class StreamImageGenerator {
     constructor() {
+        // Existing elements
         this.promptInput = document.getElementById('promptInput');
         this.generateBtn = document.getElementById('generateBtn');
         this.statusText = document.getElementById('statusText');
@@ -10,16 +11,31 @@ class StreamImageGenerator {
         this.downloadSection = document.getElementById('downloadSection');
         this.downloadBtn = document.getElementById('downloadBtn');
 
+        // New elements for analysis
+        this.tabBtns = document.querySelectorAll('.tab-btn');
+        this.tabContents = document.querySelectorAll('.tab-content');
+        this.dropZone = document.getElementById('dropZone');
+        this.fileInput = document.getElementById('fileInput');
+        this.analyzeBtn = document.getElementById('analyzeBtn');
+        this.analysisStatus = document.getElementById('analysisStatus');
+        this.analysisResult = document.getElementById('analysisResult');
+        this.previewImage = document.getElementById('previewImage');
+        this.generatedPrompt = document.getElementById('generatedPrompt');
+        this.copyPromptBtn = document.getElementById('copyPromptBtn');
+        this.usePromptBtn = document.getElementById('usePromptBtn');
+
         this.buffer = '';
         this.currentStage = 0;
         this.totalStages = 4;
         this.currentSessionId = null;
         this.currentPrompt = '';
+        this.selectedFile = null;
 
         this.initEventListeners();
     }
 
     initEventListeners() {
+        // Existing listeners
         this.generateBtn.addEventListener('click', () => this.generateImage());
         this.downloadBtn.addEventListener('click', () => this.downloadImage());
 
@@ -28,6 +44,158 @@ class StreamImageGenerator {
                 this.generateImage();
             }
         });
+
+        // Tab switching
+        this.tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
+        });
+
+        // File upload
+        this.dropZone.addEventListener('click', () => this.fileInput.click());
+        this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e.target.files[0]));
+
+        // Drag and drop
+        this.dropZone.addEventListener('dragover', (e) => this.handleDragOver(e));
+        this.dropZone.addEventListener('dragleave', (e) => this.handleDragLeave(e));
+        this.dropZone.addEventListener('drop', (e) => this.handleDrop(e));
+
+        // Analysis
+        this.analyzeBtn.addEventListener('click', () => this.analyzeImage());
+        this.copyPromptBtn.addEventListener('click', () => this.copyPrompt());
+        this.usePromptBtn.addEventListener('click', () => this.useGeneratedPrompt());
+    }
+
+    switchTab(tabName) {
+        // Update tab buttons
+        this.tabBtns.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.tab === tabName);
+        });
+
+        // Update tab contents
+        this.tabContents.forEach(content => {
+            content.classList.toggle('active', content.id === `${tabName}Tab`);
+        });
+    }
+
+    handleDragOver(e) {
+        e.preventDefault();
+        this.dropZone.classList.add('drag-over');
+    }
+
+    handleDragLeave(e) {
+        e.preventDefault();
+        this.dropZone.classList.remove('drag-over');
+    }
+
+    handleDrop(e) {
+        e.preventDefault();
+        this.dropZone.classList.remove('drag-over');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            this.handleFileSelect(files[0]);
+        }
+    }
+
+    handleFileSelect(file) {
+        if (!file) return;
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            this.showAnalysisStatus('Lütfen geçerli bir görsel dosyası seçin');
+            return;
+        }
+
+        // Validate file size (10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            this.showAnalysisStatus('Dosya boyutu çok büyük (maksimum 10MB)');
+            return;
+        }
+
+        this.selectedFile = file;
+        this.updateDropZone();
+        this.showPreview();
+        this.analyzeBtn.disabled = false;
+    }
+
+    updateDropZone() {
+        if (this.selectedFile) {
+            this.dropZone.classList.add('has-file');
+            this.dropZone.querySelector('.upload-text').textContent = this.selectedFile.name;
+            this.dropZone.querySelector('.upload-subtext').textContent = `${(this.selectedFile.size / 1024 / 1024).toFixed(2)} MB`;
+        }
+    }
+
+    showPreview() {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            this.previewImage.src = e.target.result;
+        };
+        reader.readAsDataURL(this.selectedFile);
+    }
+
+    async analyzeImage() {
+        if (!this.selectedFile) {
+            this.showAnalysisStatus('Lütfen bir görsel seçin');
+            return;
+        }
+
+        this.analyzeBtn.disabled = true;
+        this.analyzeBtn.textContent = 'Analiz ediliyor...';
+        this.showAnalysisStatus('Görsel analiz ediliyor, lütfen bekleyin...');
+
+        try {
+            const formData = new FormData();
+            formData.append('image', this.selectedFile);
+
+            const response = await fetch('/analyze-image', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                this.generatedPrompt.value = result.prompt;
+                this.analysisResult.classList.remove('hidden');
+                this.showAnalysisStatus('Analiz tamamlandı!');
+            } else {
+                this.showAnalysisStatus('Hata: ' + result.error);
+            }
+
+        } catch (error) {
+            console.error('Analysis error:', error);
+            this.showAnalysisStatus('Analiz sırasında hata oluştu: ' + error.message);
+        } finally {
+            this.analyzeBtn.disabled = false;
+            this.analyzeBtn.textContent = 'Görseli Analiz Et';
+        }
+    }
+
+    copyPrompt() {
+        navigator.clipboard.writeText(this.generatedPrompt.value).then(() => {
+            this.copyPromptBtn.textContent = '✅ Kopyalandı';
+            setTimeout(() => {
+                this.copyPromptBtn.textContent = '📋 Kopyala';
+            }, 2000);
+        }).catch(err => {
+            console.error('Copy failed:', err);
+        });
+    }
+
+    useGeneratedPrompt() {
+        // Switch to generate tab
+        this.switchTab('generate');
+        
+        // Set the prompt
+        this.promptInput.value = this.generatedPrompt.value;
+        this.promptInput.focus();
+        
+        this.showStatus('Prompt aktarıldı! Şimdi "Görsel Oluştur" butonuna tıklayın.');
+    }
+
+    showAnalysisStatus(message) {
+        this.analysisStatus.textContent = message;
     }
 
     async generateImage() {
@@ -201,20 +369,17 @@ class StreamImageGenerator {
         }
 
         try {
-            // Create download link
             const downloadUrl = `/download/${this.currentSessionId}`;
             const link = document.createElement('a');
             link.href = downloadUrl;
             link.download = `ai_generated_${this.currentSessionId}.png`;
             
-            // Trigger download
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             
             this.showStatus('Görsel indiriliyor...');
             
-            // Optional: Provide feedback
             setTimeout(() => {
                 this.showStatus('Görsel başarıyla indirildi!');
             }, 1000);
@@ -241,11 +406,9 @@ class StreamImageGenerator {
         this.imageContainer.classList.remove('hidden');
         this.hideDownloadButton();
 
-        // Reset image display
         this.imageContent.classList.add('loading');
         this.imageContent.innerHTML = 'Görsel oluşturuluyor...';
 
-        // Reset progress
         this.progressFill.style.width = '0%';
         this.progressText.textContent = 'Başlatılıyor...';
     }

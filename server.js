@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import OpenAI from 'openai';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import multer from 'multer'; // Yeni import
 
 dotenv.config();
 
@@ -19,6 +20,22 @@ const openai = new OpenAI({
 
 // In-memory storage for generated images
 const imageStorage = new Map();
+
+// Multer configuration for file uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Only allow image files
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Sadece görsel dosyaları yüklenebilir'));
+    }
+  }
+});
 
 app.use(cors());
 app.use(express.json());
@@ -151,6 +168,79 @@ app.get('/download/:sessionId', (req, res) => {
   } catch (error) {
     console.error('Error serving image:', error);
     res.status(500).json({ error: 'Görsel indirirken hata oluştu' });
+  }
+});
+
+// Image analysis endpoint - Generate prompt from uploaded image
+app.post('/analyze-image', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Görsel dosyası gerekli' });
+    }
+
+    console.log('Analyzing uploaded image:', req.file.originalname);
+
+    // Convert buffer to base64
+    const imageBase64 = req.file.buffer.toString('base64');
+    const imageDataUrl = `data:${req.file.mimetype};base64,${imageBase64}`;
+
+    // Analyze image with GPT-4 Vision
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `Bu görseli detaylı olarak analiz et ve bu görsel için AI görsel üretim modeline verilebilecek mükemmel bir prompt oluştur. 
+
+Prompt'ın özellikleri:
+- Görsel unsurları (objeler, kişiler, hayvanlar) açık bir şekilde tanımla
+- Renk paletini ve atmosferi belirt
+- Sanat stilini veya tekniği açıkla (fotoğraf, çizim, dijital sanat vb.)
+- Kompozisyon ve perspektifi tanımla
+- Işıklandırma ve gölgelendirmeyi açıkla
+- Arka plan ve ortamı detaylandır
+
+Sadece prompt'ı ver, açıklama yapma. Prompt Türkçe olsun ve AI görsel üretimi için optimize edilmiş olsun.`
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: imageDataUrl
+              }
+            }
+          ]
+        }
+      ],
+      max_tokens: 500
+    });
+
+    const generatedPrompt = response.choices[0].message.content;
+
+    console.log('Generated prompt:', generatedPrompt);
+
+    res.json({
+      success: true,
+      prompt: generatedPrompt,
+      imageInfo: {
+        filename: req.file.originalname,
+        size: req.file.size,
+        mimetype: req.file.mimetype
+      }
+    });
+
+  } catch (error) {
+    console.error('Error analyzing image:', error);
+    
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'Dosya boyutu çok büyük (maksimum 10MB)' });
+    }
+    
+    res.status(500).json({ 
+      error: 'Görsel analizi sırasında hata oluştu: ' + error.message 
+    });
   }
 });
 

@@ -13,37 +13,82 @@
             <p>GPT-4.1 ile gerçek zamanlı görsel üretimi</p>
         </header>
 
-        <div class="input-section">
-            <textarea 
-                id="promptInput" 
-                placeholder="Oluşturmak istediğiniz görseli detaylı olarak açıklayın..."
-                rows="3"
-            ></textarea>
-            <button id="generateBtn">Görsel Oluştur</button>
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="generate">Görsel Oluştur</button>
+            <button class="tab-btn" data-tab="analyze">Görsel Analiz Et</button>
         </div>
 
-        <div class="generation-area">
-            <div id="statusText" class="status-text">Görsel oluşturmak için yukarıya bir prompt yazın</div>
-            
-            <div id="imageContainer" class="image-container hidden">
-                <div class="progress-info">
-                    <div id="progressText" class="progress-text">Başlatılıyor...</div>
-                    <div id="progressBar" class="progress-bar">
-                        <div id="progressFill" class="progress-fill"></div>
-                    </div>
-                </div>
-                
-                <div id="imageDisplay" class="image-display">
-                    <div id="imageContent" class="image-content">
-                        Görsel oluşturuluyor...
-                    </div>
-                </div>
+        <!-- Generate Tab -->
+        <div id="generateTab" class="tab-content active">
+            <div class="input-section">
+                <textarea 
+                    id="promptInput" 
+                    placeholder="Oluşturmak istediğiniz görseli detaylı olarak açıklayın..."
+                    rows="3"
+                ></textarea>
+                <button id="generateBtn">Görsel Oluştur</button>
+            </div>
 
-                <div id="downloadSection" class="download-section hidden">
-                    <button id="downloadBtn" class="download-btn">
-                        <span class="download-icon">⬇️</span>
-                        Görseli İndir
-                    </button>
+            <div class="generation-area">
+                <div id="statusText" class="status-text">Görsel oluşturmak için yukarıya bir prompt yazın</div>
+                
+                <div id="imageContainer" class="image-container hidden">
+                    <div class="progress-info">
+                        <div id="progressText" class="progress-text">Başlatılıyor...</div>
+                        <div id="progressBar" class="progress-bar">
+                            <div id="progressFill" class="progress-fill"></div>
+                        </div>
+                    </div>
+                    
+                    <div id="imageDisplay" class="image-display">
+                        <div id="imageContent" class="image-content">
+                            Görsel oluşturuluyor...
+                        </div>
+                    </div>
+
+                    <div id="downloadSection" class="download-section hidden">
+                        <button id="downloadBtn" class="download-btn">
+                            <span class="download-icon">⬇️</span>
+                            Görseli İndir
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analyze Tab -->
+        <div id="analyzeTab" class="tab-content">
+            <div class="input-section">
+                <div class="upload-area">
+                    <div id="dropZone" class="drop-zone">
+                        <div class="drop-zone-content">
+                            <div class="upload-icon">📷</div>
+                            <p class="upload-text">Görsel dosyasını buraya sürükleyin veya tıklayın</p>
+                            <p class="upload-subtext">PNG, JPG, JPEG, GIF (Maksimum 10MB)</p>
+                        </div>
+                        <input type="file" id="fileInput" accept="image/*" hidden>
+                    </div>
+                </div>
+                <button id="analyzeBtn" disabled>Görseli Analiz Et</button>
+            </div>
+
+            <div class="analysis-area">
+                <div id="analysisStatus" class="status-text">Analiz etmek için bir görsel yükleyin</div>
+                
+                <div id="analysisResult" class="analysis-result hidden">
+                    <div class="uploaded-image-preview">
+                        <img id="previewImage" alt="Yüklenen görsel" />
+                    </div>
+                    
+                    <div class="prompt-result">
+                        <label for="generatedPrompt">Oluşturulan Prompt:</label>
+                        <textarea id="generatedPrompt" rows="6" readonly></textarea>
+                        <div class="prompt-actions">
+                            <button id="copyPromptBtn" class="action-btn">📋 Kopyala</button>
+                            <button id="usePromptBtn" class="action-btn primary">🎨 Bu Prompt ile Görsel Oluştur</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
