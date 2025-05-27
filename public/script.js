@@ -7,16 +7,21 @@ class StreamImageGenerator {
         this.imageContent = document.getElementById('imageContent');
         this.progressText = document.getElementById('progressText');
         this.progressFill = document.getElementById('progressFill');
+        this.downloadSection = document.getElementById('downloadSection');
+        this.downloadBtn = document.getElementById('downloadBtn');
 
-        this.buffer = ''; // Buffer for incomplete data
+        this.buffer = '';
         this.currentStage = 0;
-        this.totalStages = 4; // 0, 1, 2, 3 (4 aşama)
+        this.totalStages = 4;
+        this.currentSessionId = null;
+        this.currentPrompt = '';
 
         this.initEventListeners();
     }
 
     initEventListeners() {
         this.generateBtn.addEventListener('click', () => this.generateImage());
+        this.downloadBtn.addEventListener('click', () => this.downloadImage());
 
         this.promptInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && e.ctrlKey) {
@@ -33,6 +38,7 @@ class StreamImageGenerator {
             return;
         }
 
+        this.currentPrompt = prompt;
         this.startGeneration();
 
         try {
@@ -50,7 +56,7 @@ class StreamImageGenerator {
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
-            this.buffer = ''; // Reset buffer
+            this.buffer = '';
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -60,7 +66,6 @@ class StreamImageGenerator {
                 const chunk = decoder.decode(value, { stream: true });
                 this.buffer += chunk;
 
-                // Process complete lines
                 this.processBuffer();
             }
 
@@ -73,8 +78,6 @@ class StreamImageGenerator {
 
     processBuffer() {
         const lines = this.buffer.split('\n');
-
-        // Keep the last potentially incomplete line in buffer
         this.buffer = lines.pop() || '';
 
         for (const line of lines) {
@@ -99,10 +102,17 @@ class StreamImageGenerator {
         switch (data.type) {
             case 'partial':
                 this.updatePartialImage(data.index, data.image);
+                if (data.sessionId) {
+                    this.currentSessionId = data.sessionId;
+                }
                 break;
 
             case 'completed':
                 this.showFinalImage(data.image);
+                if (data.sessionId) {
+                    this.currentSessionId = data.sessionId;
+                }
+                this.showDownloadButton();
                 break;
 
             case 'done':
@@ -174,6 +184,47 @@ class StreamImageGenerator {
         }
     }
 
+    showDownloadButton() {
+        if (this.currentSessionId) {
+            this.downloadSection.classList.remove('hidden');
+        }
+    }
+
+    hideDownloadButton() {
+        this.downloadSection.classList.add('hidden');
+    }
+
+    downloadImage() {
+        if (!this.currentSessionId) {
+            this.showStatus('İndirme hatası: Session ID bulunamadı');
+            return;
+        }
+
+        try {
+            // Create download link
+            const downloadUrl = `/download/${this.currentSessionId}`;
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = `ai_generated_${this.currentSessionId}.png`;
+            
+            // Trigger download
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            this.showStatus('Görsel indiriliyor...');
+            
+            // Optional: Provide feedback
+            setTimeout(() => {
+                this.showStatus('Görsel başarıyla indirildi!');
+            }, 1000);
+
+        } catch (error) {
+            console.error('Download error:', error);
+            this.showStatus('İndirme hatası: ' + error.message);
+        }
+    }
+
     updateProgress() {
         const percentage = (this.currentStage / this.totalStages) * 100;
         this.progressFill.style.width = `${percentage}%`;
@@ -184,9 +235,11 @@ class StreamImageGenerator {
         this.generateBtn.disabled = true;
         this.generateBtn.textContent = 'Oluşturuluyor...';
         this.currentStage = 0;
+        this.currentSessionId = null;
 
         this.showStatus('Görsel oluşturma başlatılıyor...');
         this.imageContainer.classList.remove('hidden');
+        this.hideDownloadButton();
 
         // Reset image display
         this.imageContent.classList.add('loading');
@@ -207,7 +260,9 @@ class StreamImageGenerator {
         this.generateBtn.disabled = false;
         this.generateBtn.textContent = 'Görsel Oluştur';
         this.imageContainer.classList.add('hidden');
+        this.hideDownloadButton();
         this.currentStage = 0;
+        this.currentSessionId = null;
     }
 
     showStatus(message) {

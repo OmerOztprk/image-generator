@@ -188,6 +188,50 @@ header p {
     to { opacity: 1; }
 }
 
+.download-section {
+    margin-top: 20px;
+    text-align: center;
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+
+.download-section.hidden {
+    opacity: 0;
+    height: 0;
+    overflow: hidden;
+    margin: 0;
+}
+
+.download-btn {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.download-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(40, 167, 69, 0.4);
+    background: linear-gradient(135deg, #218838 0%, #1ea085 100%);
+}
+
+.download-btn:active {
+    transform: translateY(0);
+}
+
+.download-icon {
+    font-size: 18px;
+}
+
 @media (max-width: 768px) {
     header h1 {
         font-size: 2em;

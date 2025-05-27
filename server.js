@@ -17,6 +17,9 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
+// In-memory storage for generated images
+const imageStorage = new Map();
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -31,6 +34,9 @@ app.post('/generate-image', async (req, res) => {
   if (!prompt) {
     return res.status(400).json({ error: 'Prompt is required' });
   }
+
+  // Generate unique session ID
+  const sessionId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
 
   // Server-Sent Events headers
   res.writeHead(200, {
@@ -64,7 +70,8 @@ app.post('/generate-image', async (req, res) => {
         const data = {
           type: 'partial',
           index: event.partial_image_index,
-          image: event.partial_image_b64
+          image: event.partial_image_b64,
+          sessionId: sessionId
         };
         
         // Son partial image'ı saklayalım (en yüksek index'e sahip olan)
@@ -80,10 +87,22 @@ app.post('/generate-image', async (req, res) => {
       if (event.type === "response.image_generation_call.completed") {
         console.log('Completed event full object:', JSON.stringify(event, null, 2));
         
+        // Store final image for download
+        const imageData = {
+          prompt: prompt,
+          image: lastPartialImage,
+          createdAt: new Date().toISOString(),
+          filename: `ai_generated_${sessionId}.png`
+        };
+        
+        imageStorage.set(sessionId, imageData);
+        
         // Son partial image'ı nihai görsel olarak kullan
         const data = {
           type: 'completed',
-          image: lastPartialImage
+          image: lastPartialImage,
+          sessionId: sessionId,
+          downloadUrl: `/download/${sessionId}`
         };
         
         console.log(`Sending final image (using last partial), size: ${lastPartialImage?.length || 0}`);
@@ -103,6 +122,35 @@ app.post('/generate-image', async (req, res) => {
     };
     res.write(`data: ${JSON.stringify(errorData)}\n\n`);
     res.end();
+  }
+});
+
+// Image download endpoint
+app.get('/download/:sessionId', (req, res) => {
+  const { sessionId } = req.params;
+  const imageData = imageStorage.get(sessionId);
+
+  if (!imageData) {
+    return res.status(404).json({ error: 'Görsel bulunamadı' });
+  }
+
+  try {
+    // Convert base64 to buffer
+    const imageBuffer = Buffer.from(imageData.image, 'base64');
+    
+    // Set headers for file download
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Disposition', `attachment; filename="${imageData.filename}"`);
+    res.setHeader('Content-Length', imageBuffer.length);
+    
+    // Send the image
+    res.send(imageBuffer);
+    
+    console.log(`Image downloaded: ${imageData.filename}`);
+    
+  } catch (error) {
+    console.error('Error serving image:', error);
+    res.status(500).json({ error: 'Görsel indirirken hata oluştu' });
   }
 });
 
