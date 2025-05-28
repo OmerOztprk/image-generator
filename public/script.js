@@ -114,8 +114,13 @@ class StreamImageGenerator {
 
         this.selectedFile = file;
         this.updateDropZone();
-        this.showPreview();
+        
+        // ÖNEMLİ: showPreview() çağırısını kaldırdık
+        // Sadece analiz butonunu aktif hale getiriyoruz
         this.analyzeBtn.disabled = false;
+        
+        // Status mesajını güncelle ama önceki analiz sonuçlarını koruyoruz
+        this.showAnalysisStatus('Yeni görsel seçildi. Analiz etmek için "Görseli Analiz Et" butonuna tıklayın.');
     }
 
     updateDropZone() {
@@ -127,6 +132,7 @@ class StreamImageGenerator {
     }
 
     showPreview() {
+        // Bu fonksiyon artık sadece analiz başladığında çağrılacak
         const reader = new FileReader();
         reader.onload = (e) => {
             this.previewImage.src = e.target.result;
@@ -140,9 +146,8 @@ class StreamImageGenerator {
             return;
         }
 
-        this.analyzeBtn.disabled = true;
-        this.analyzeBtn.textContent = 'Analiz ediliyor...';
-        this.showAnalysisStatus('Görsel analiz ediliyor, lütfen bekleyin...');
+        // Analiz başladığında UI'yi temizle ve hazırla
+        this.startAnalysis();
 
         try {
             const formData = new FormData();
@@ -167,9 +172,37 @@ class StreamImageGenerator {
             console.error('Analysis error:', error);
             this.showAnalysisStatus('Analiz sırasında hata oluştu: ' + error.message);
         } finally {
-            this.analyzeBtn.disabled = false;
-            this.analyzeBtn.textContent = 'Görseli Analiz Et';
+            this.finishAnalysis();
         }
+    }
+
+    startAnalysis() {
+        // Buton durumunu güncelle
+        this.analyzeBtn.disabled = true;
+        this.analyzeBtn.textContent = 'Analiz ediliyor...';
+        
+        // Önceki analiz sonuçlarını gizle
+        this.analysisResult.classList.add('hidden');
+        
+        // Status mesajını güncelle
+        this.showAnalysisStatus('Görsel analiz ediliyor, lütfen bekleyin...');
+        
+        // ŞİMDİ görseli göster (analiz başladığında)
+        this.showPreview();
+    }
+
+    finishAnalysis() {
+        // Buton durumunu eski haline getir
+        this.analyzeBtn.disabled = false;
+        this.analyzeBtn.textContent = 'Görseli Analiz Et';
+    }
+
+    resetAnalysisUI() {
+        // Analiz alanını tamamen sıfırla (isteğe bağlı)
+        this.analysisResult.classList.add('hidden');
+        this.previewImage.src = '';
+        this.generatedPrompt.value = '';
+        this.showAnalysisStatus('Analiz etmek için bir görsel yükleyin');
     }
 
     copyPrompt() {
@@ -197,6 +230,8 @@ class StreamImageGenerator {
     showAnalysisStatus(message) {
         this.analysisStatus.textContent = message;
     }
+
+    // ... (rest of existing methods remain the same) ...
 
     async generateImage() {
         const prompt = this.promptInput.value.trim();
