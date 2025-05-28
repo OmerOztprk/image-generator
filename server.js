@@ -4,7 +4,10 @@ import dotenv from 'dotenv';
 import OpenAI from 'openai';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import multer from 'multer'; // Yeni import
+import multer from 'multer';
+import ffmpeg from 'fluent-ffmpeg'; // Yeni import
+import fs from 'fs';
+import { promisify } from 'util';
 
 dotenv.config();
 
@@ -18,24 +21,27 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-// In-memory storage for generated images
+// In-memory storage for generated images and videos
 const imageStorage = new Map();
+const videoStorage = new Map();
 
-// Multer configuration for file uploads
+// Enhanced multer configuration for both images and videos
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB limit
+    fileSize: 50 * 1024 * 1024 // 50MB limit for videos
   },
   fileFilter: (req, file, cb) => {
-    // Only allow image files
-    if (file.mimetype.startsWith('image/')) {
+    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
       cb(null, true);
     } else {
-      cb(new Error('Sadece görsel dosyaları yüklenebilir'));
+      cb(new Error('Sadece görsel ve video dosyaları yüklenebilir'));
     }
   }
 });
+
+const writeFile = promisify(fs.writeFile);
+const unlink = promisify(fs.unlink);
 
 app.use(cors());
 app.use(express.json());
@@ -243,6 +249,194 @@ Sadece prompt'ı ver, açıklama yapma. Prompt Türkçe olsun ve AI görsel üre
     });
   }
 });
+
+// Video analysis endpoint - Generate description from video frames
+app.post('/analyze-video', upload.single('video'), async (req, res) => {
+  const tempVideoPath = path.join(__dirname, 'temp_video_' + Date.now() + '.mp4');
+  const tempFramesDir = path.join(__dirname, 'temp_frames_' + Date.now());
+  
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Video dosyası gerekli' });
+    }
+
+    console.log('Analyzing uploaded video:', req.file.originalname);
+
+    // Create temp directory for frames
+    if (!fs.existsSync(tempFramesDir)) {
+      fs.mkdirSync(tempFramesDir);
+    }
+
+    // Save video file temporarily
+    await writeFile(tempVideoPath, req.file.buffer);
+
+    // Extract frames from video
+    const frameFiles = await extractFrames(tempVideoPath, tempFramesDir);
+    
+    if (frameFiles.length === 0) {
+      throw new Error('Video\'dan frame çıkarılamadı');
+    }
+
+    console.log(`Extracted ${frameFiles.length} frames from video`);
+
+    // Convert frames to base64
+    const frameBase64Array = [];
+    for (let i = 0; i < Math.min(frameFiles.length, 6); i++) { // Max 6 frames
+      const framePath = path.join(tempFramesDir, frameFiles[i]);
+      const frameBuffer = fs.readFileSync(framePath);
+      const frameBase64 = frameBuffer.toString('base64');
+      frameBase64Array.push(`data:image/jpeg;base64,${frameBase64}`);
+    }
+
+    // Analyze frames with GPT-4 Vision
+    const messages = [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: `Bu video karelerini analiz et ve videonun içeriğini detaylı olarak açıkla. 
+
+Açıklamanın içermesi gerekenler:
+- Video boyunca neler oluyor? Genel hikaye veya akış nedir?
+- Hangi objeler, kişiler, hayvanlar görünüyor?
+- Ortam ve mekan nasıl? (iç mekan, dış mekan, doğa, şehir vb.)
+- Renkler, ışıklandırma ve atmosfer nasıl?
+- Hareket ve aksiyonlar neler?
+- Video genel olarak hangi tür/kategori? (eğitim, eğlence, belgesel vb.)
+- Önemli anlar veya sahneler var mı?
+
+Detaylı ve kapsamlı bir açıklama yap. Türkçe cevap ver.`
+          },
+          ...frameBase64Array.map(frame => ({
+            type: "image_url",
+            image_url: { url: frame }
+          }))
+        ]
+      }
+    ];
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: messages,
+      max_tokens: 1000
+    });
+
+    const videoAnalysis = response.choices[0].message.content;
+
+    console.log('Generated video analysis:', videoAnalysis);
+
+    // Store video info and analysis
+    const videoId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    const videoData = {
+      originalName: req.file.originalname,
+      videoBase64: req.file.buffer.toString('base64'),
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      analysis: videoAnalysis,
+      frameCount: frameFiles.length,
+      createdAt: new Date().toISOString()
+    };
+    
+    videoStorage.set(videoId, videoData);
+
+    res.json({
+      success: true,
+      videoId: videoId,
+      analysis: videoAnalysis,
+      videoInfo: {
+        filename: req.file.originalname,
+        size: req.file.size,
+        mimetype: req.file.mimetype,
+        frameCount: frameFiles.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Error analyzing video:', error);
+    
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'Video dosyası çok büyük (maksimum 50MB)' });
+    }
+    
+    res.status(500).json({ 
+      error: 'Video analizi sırasında hata oluştu: ' + error.message 
+    });
+  } finally {
+    // Clean up temporary files
+    try {
+      if (fs.existsSync(tempVideoPath)) {
+        await unlink(tempVideoPath);
+      }
+      if (fs.existsSync(tempFramesDir)) {
+        const files = fs.readdirSync(tempFramesDir);
+        for (const file of files) {
+          await unlink(path.join(tempFramesDir, file));
+        }
+        fs.rmdirSync(tempFramesDir);
+      }
+    } catch (cleanupError) {
+      console.error('Cleanup error:', cleanupError);
+    }
+  }
+});
+
+// Video serve endpoint
+app.get('/video/:videoId', (req, res) => {
+  const { videoId } = req.params;
+  const videoData = videoStorage.get(videoId);
+
+  if (!videoData) {
+    return res.status(404).json({ error: 'Video bulunamadı' });
+  }
+
+  try {
+    const videoBuffer = Buffer.from(videoData.videoBase64, 'base64');
+    
+    res.setHeader('Content-Type', videoData.mimetype);
+    res.setHeader('Content-Length', videoBuffer.length);
+    res.setHeader('Accept-Ranges', 'bytes');
+    
+    res.send(videoBuffer);
+    
+  } catch (error) {
+    console.error('Error serving video:', error);
+    res.status(500).json({ error: 'Video servis edilirken hata oluştu' });
+  }
+});
+
+// Helper function to extract frames from video
+function extractFrames(videoPath, outputDir) {
+  return new Promise((resolve, reject) => {
+    const frameFiles = [];
+    
+    ffmpeg(videoPath)
+      .screenshots({
+        count: 6, // Extract 6 frames
+        folder: outputDir,
+        filename: 'frame_%i.jpg',
+        size: '640x480'
+      })
+      .on('end', () => {
+        try {
+          const files = fs.readdirSync(outputDir);
+          const sortedFiles = files
+            .filter(file => file.startsWith('frame_') && file.endsWith('.jpg'))
+            .sort((a, b) => {
+              const numA = parseInt(a.match(/frame_(\d+)\.jpg/)[1]);
+              const numB = parseInt(b.match(/frame_(\d+)\.jpg/)[1]);
+              return numA - numB;
+            });
+          resolve(sortedFiles);
+        } catch (error) {
+          reject(error);
+        }
+      })
+      .on('error', (error) => {
+        reject(error);
+      });
+  });
+}
 
 // Graceful shutdown
 process.on('SIGINT', () => {

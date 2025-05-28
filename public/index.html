@@ -17,6 +17,7 @@
         <div class="tabs">
             <button class="tab-btn active" data-tab="generate">Görsel Oluştur</button>
             <button class="tab-btn" data-tab="analyze">Görsel Analiz Et</button>
+            <button class="tab-btn" data-tab="video">Video Analiz Et</button>
         </div>
 
         <!-- Generate Tab -->
@@ -87,6 +88,44 @@
                         <div class="prompt-actions">
                             <button id="copyPromptBtn" class="action-btn">📋 Kopyala</button>
                             <button id="usePromptBtn" class="action-btn primary">🎨 Bu Prompt ile Görsel Oluştur</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Video Analysis Tab -->
+        <div id="videoTab" class="tab-content">
+            <div class="input-section">
+                <div class="upload-area">
+                    <div id="videoDropZone" class="drop-zone">
+                        <div class="drop-zone-content">
+                            <div class="upload-icon">🎬</div>
+                            <p class="upload-text">Video dosyasını buraya sürükleyin veya tıklayın</p>
+                            <p class="upload-subtext">MP4, MOV, AVI, WebM (Maksimum 50MB)</p>
+                        </div>
+                        <input type="file" id="videoFileInput" accept="video/*" hidden>
+                    </div>
+                </div>
+                <button id="analyzeVideoBtn" disabled>Videoyu Analiz Et</button>
+            </div>
+
+            <div class="video-analysis-area">
+                <div id="videoAnalysisStatus" class="status-text">Analiz etmek için bir video yükleyin</div>
+                
+                <div id="videoAnalysisResult" class="analysis-result hidden">
+                    <div class="uploaded-video-preview">
+                        <video id="previewVideo" controls width="100%" style="max-width: 600px; border-radius: 12px;">
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+                    
+                    <div class="analysis-result-content">
+                        <label for="videoAnalysisText">Video Analizi:</label>
+                        <textarea id="videoAnalysisText" rows="10" readonly></textarea>
+                        <div class="video-actions">
+                            <button id="copyVideoAnalysisBtn" class="action-btn">📋 Analizi Kopyala</button>
+                            <button id="useVideoAnalysisBtn" class="action-btn primary">🎨 Bu Açıklama ile Görsel Oluştur</button>
                         </div>
                     </div>
                 </div>

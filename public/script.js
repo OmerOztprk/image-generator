@@ -11,7 +11,7 @@ class StreamImageGenerator {
         this.downloadSection = document.getElementById('downloadSection');
         this.downloadBtn = document.getElementById('downloadBtn');
 
-        // New elements for analysis
+        // Image analysis elements
         this.tabBtns = document.querySelectorAll('.tab-btn');
         this.tabContents = document.querySelectorAll('.tab-content');
         this.dropZone = document.getElementById('dropZone');
@@ -24,12 +24,25 @@ class StreamImageGenerator {
         this.copyPromptBtn = document.getElementById('copyPromptBtn');
         this.usePromptBtn = document.getElementById('usePromptBtn');
 
+        // Video analysis elements
+        this.videoDropZone = document.getElementById('videoDropZone');
+        this.videoFileInput = document.getElementById('videoFileInput');
+        this.analyzeVideoBtn = document.getElementById('analyzeVideoBtn');
+        this.videoAnalysisStatus = document.getElementById('videoAnalysisStatus');
+        this.videoAnalysisResult = document.getElementById('videoAnalysisResult');
+        this.previewVideo = document.getElementById('previewVideo');
+        this.videoAnalysisText = document.getElementById('videoAnalysisText');
+        this.copyVideoAnalysisBtn = document.getElementById('copyVideoAnalysisBtn');
+        this.useVideoAnalysisBtn = document.getElementById('useVideoAnalysisBtn');
+
         this.buffer = '';
         this.currentStage = 0;
         this.totalStages = 4;
         this.currentSessionId = null;
         this.currentPrompt = '';
         this.selectedFile = null;
+        this.selectedVideoFile = null;
+        this.currentVideoId = null;
 
         this.initEventListeners();
     }
@@ -50,19 +63,25 @@ class StreamImageGenerator {
             btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
         });
 
-        // File upload
+        // Image analysis
         this.dropZone.addEventListener('click', () => this.fileInput.click());
         this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e.target.files[0]));
-
-        // Drag and drop
-        this.dropZone.addEventListener('dragover', (e) => this.handleDragOver(e));
-        this.dropZone.addEventListener('dragleave', (e) => this.handleDragLeave(e));
-        this.dropZone.addEventListener('drop', (e) => this.handleDrop(e));
-
-        // Analysis
+        this.dropZone.addEventListener('dragover', (e) => this.handleDragOver(e, 'image'));
+        this.dropZone.addEventListener('dragleave', (e) => this.handleDragLeave(e, 'image'));
+        this.dropZone.addEventListener('drop', (e) => this.handleDrop(e, 'image'));
         this.analyzeBtn.addEventListener('click', () => this.analyzeImage());
         this.copyPromptBtn.addEventListener('click', () => this.copyPrompt());
         this.usePromptBtn.addEventListener('click', () => this.useGeneratedPrompt());
+
+        // Video analysis
+        this.videoDropZone.addEventListener('click', () => this.videoFileInput.click());
+        this.videoFileInput.addEventListener('change', (e) => this.handleVideoFileSelect(e.target.files[0]));
+        this.videoDropZone.addEventListener('dragover', (e) => this.handleDragOver(e, 'video'));
+        this.videoDropZone.addEventListener('dragleave', (e) => this.handleDragLeave(e, 'video'));
+        this.videoDropZone.addEventListener('drop', (e) => this.handleDrop(e, 'video'));
+        this.analyzeVideoBtn.addEventListener('click', () => this.analyzeVideo());
+        this.copyVideoAnalysisBtn.addEventListener('click', () => this.copyVideoAnalysis());
+        this.useVideoAnalysisBtn.addEventListener('click', () => this.useVideoAnalysis());
     }
 
     switchTab(tabName) {
@@ -77,25 +96,165 @@ class StreamImageGenerator {
         });
     }
 
-    handleDragOver(e) {
+    handleDragOver(e, type) {
         e.preventDefault();
-        this.dropZone.classList.add('drag-over');
-    }
-
-    handleDragLeave(e) {
-        e.preventDefault();
-        this.dropZone.classList.remove('drag-over');
-    }
-
-    handleDrop(e) {
-        e.preventDefault();
-        this.dropZone.classList.remove('drag-over');
-        
-        const files = e.dataTransfer.files;
-        if (files.length > 0) {
-            this.handleFileSelect(files[0]);
+        if (type === 'video') {
+            this.videoDropZone.classList.add('drag-over');
+        } else {
+            this.dropZone.classList.add('drag-over');
         }
     }
+
+    handleDragLeave(e, type) {
+        e.preventDefault();
+        if (type === 'video') {
+            this.videoDropZone.classList.remove('drag-over');
+        } else {
+            this.dropZone.classList.remove('drag-over');
+        }
+    }
+
+    handleDrop(e, type) {
+        e.preventDefault();
+        
+        if (type === 'video') {
+            this.videoDropZone.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                this.handleVideoFileSelect(files[0]);
+            }
+        } else {
+            this.dropZone.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                this.handleFileSelect(files[0]);
+            }
+        }
+    }
+
+    // Video analysis methods
+    handleVideoFileSelect(file) {
+        if (!file) return;
+
+        // Validate file type
+        if (!file.type.startsWith('video/')) {
+            this.showVideoAnalysisStatus('Lütfen geçerli bir video dosyası seçin');
+            return;
+        }
+
+        // Validate file size (50MB)
+        if (file.size > 50 * 1024 * 1024) {
+            this.showVideoAnalysisStatus('Video dosyası çok büyük (maksimum 50MB)');
+            return;
+        }
+
+        this.selectedVideoFile = file;
+        this.updateVideoDropZone();
+        this.analyzeVideoBtn.disabled = false;
+        
+        this.showVideoAnalysisStatus('Yeni video seçildi. Analiz etmek için "Videoyu Analiz Et" butonuna tıklayın.');
+    }
+
+    updateVideoDropZone() {
+        if (this.selectedVideoFile) {
+            this.videoDropZone.classList.add('has-file');
+            this.videoDropZone.querySelector('.upload-text').textContent = this.selectedVideoFile.name;
+            this.videoDropZone.querySelector('.upload-subtext').textContent = `${(this.selectedVideoFile.size / 1024 / 1024).toFixed(2)} MB`;
+        }
+    }
+
+    async analyzeVideo() {
+        if (!this.selectedVideoFile) {
+            this.showVideoAnalysisStatus('Lütfen bir video seçin');
+            return;
+        }
+
+        this.startVideoAnalysis();
+
+        try {
+            const formData = new FormData();
+            formData.append('video', this.selectedVideoFile);
+
+            const response = await fetch('/analyze-video', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                this.currentVideoId = result.videoId;
+                this.videoAnalysisText.value = result.analysis;
+                this.showVideoPreview();
+                this.videoAnalysisResult.classList.remove('hidden');
+                this.showVideoAnalysisStatus('Video analizi tamamlandı!');
+            } else {
+                this.showVideoAnalysisStatus('Hata: ' + result.error);
+            }
+
+        } catch (error) {
+            console.error('Video analysis error:', error);
+            this.showVideoAnalysisStatus('Video analizi sırasında hata oluştu: ' + error.message);
+        } finally {
+            this.finishVideoAnalysis();
+        }
+    }
+
+    startVideoAnalysis() {
+        this.analyzeVideoBtn.disabled = true;
+        this.analyzeVideoBtn.textContent = 'Analiz ediliyor...';
+        
+        this.videoAnalysisResult.classList.add('hidden');
+        this.showVideoAnalysisStatus('Video analiz ediliyor, lütfen bekleyin...');
+        
+        // Show loading spinner
+        this.showVideoLoadingState();
+    }
+
+    finishVideoAnalysis() {
+        this.analyzeVideoBtn.disabled = false;
+        this.analyzeVideoBtn.textContent = 'Videoyu Analiz Et';
+    }
+
+    showVideoLoadingState() {
+        // You can add a loading spinner here if needed
+        console.log('Video analysis in progress...');
+    }
+
+    showVideoPreview() {
+        if (this.currentVideoId) {
+            this.previewVideo.src = `/video/${this.currentVideoId}`;
+            this.previewVideo.load();
+        }
+    }
+
+    copyVideoAnalysis() {
+        navigator.clipboard.writeText(this.videoAnalysisText.value).then(() => {
+            this.copyVideoAnalysisBtn.textContent = '✅ Kopyalandı';
+            setTimeout(() => {
+                this.copyVideoAnalysisBtn.textContent = '📋 Analizi Kopyala';
+            }, 2000);
+        }).catch(err => {
+            console.error('Copy failed:', err);
+        });
+    }
+
+    useVideoAnalysis() {
+        // Switch to generate tab
+        this.switchTab('generate');
+        
+        // Set the video analysis as prompt
+        this.promptInput.value = this.videoAnalysisText.value;
+        this.promptInput.focus();
+        
+        this.showStatus('Video analizi prompt olarak aktarıldı! Şimdi "Görsel Oluştur" butonuna tıklayın.');
+    }
+
+    showVideoAnalysisStatus(message) {
+        this.videoAnalysisStatus.textContent = message;
+    }
+
+    // ... (rest of existing methods remain the same) ...
 
     handleFileSelect(file) {
         if (!file) return;
@@ -114,12 +273,8 @@ class StreamImageGenerator {
 
         this.selectedFile = file;
         this.updateDropZone();
-        
-        // ÖNEMLİ: showPreview() çağırısını kaldırdık
-        // Sadece analiz butonunu aktif hale getiriyoruz
         this.analyzeBtn.disabled = false;
         
-        // Status mesajını güncelle ama önceki analiz sonuçlarını koruyoruz
         this.showAnalysisStatus('Yeni görsel seçildi. Analiz etmek için "Görseli Analiz Et" butonuna tıklayın.');
     }
 
@@ -132,7 +287,6 @@ class StreamImageGenerator {
     }
 
     showPreview() {
-        // Bu fonksiyon artık sadece analiz başladığında çağrılacak
         const reader = new FileReader();
         reader.onload = (e) => {
             this.previewImage.src = e.target.result;
@@ -146,7 +300,6 @@ class StreamImageGenerator {
             return;
         }
 
-        // Analiz başladığında UI'yi temizle ve hazırla
         this.startAnalysis();
 
         try {
@@ -177,32 +330,16 @@ class StreamImageGenerator {
     }
 
     startAnalysis() {
-        // Buton durumunu güncelle
         this.analyzeBtn.disabled = true;
         this.analyzeBtn.textContent = 'Analiz ediliyor...';
-        
-        // Önceki analiz sonuçlarını gizle
         this.analysisResult.classList.add('hidden');
-        
-        // Status mesajını güncelle
         this.showAnalysisStatus('Görsel analiz ediliyor, lütfen bekleyin...');
-        
-        // ŞİMDİ görseli göster (analiz başladığında)
         this.showPreview();
     }
 
     finishAnalysis() {
-        // Buton durumunu eski haline getir
         this.analyzeBtn.disabled = false;
         this.analyzeBtn.textContent = 'Görseli Analiz Et';
-    }
-
-    resetAnalysisUI() {
-        // Analiz alanını tamamen sıfırla (isteğe bağlı)
-        this.analysisResult.classList.add('hidden');
-        this.previewImage.src = '';
-        this.generatedPrompt.value = '';
-        this.showAnalysisStatus('Analiz etmek için bir görsel yükleyin');
     }
 
     copyPrompt() {
@@ -217,13 +354,9 @@ class StreamImageGenerator {
     }
 
     useGeneratedPrompt() {
-        // Switch to generate tab
         this.switchTab('generate');
-        
-        // Set the prompt
         this.promptInput.value = this.generatedPrompt.value;
         this.promptInput.focus();
-        
         this.showStatus('Prompt aktarıldı! Şimdi "Görsel Oluştur" butonuna tıklayın.');
     }
 
@@ -231,7 +364,7 @@ class StreamImageGenerator {
         this.analysisStatus.textContent = message;
     }
 
-    // ... (rest of existing methods remain the same) ...
+    // ... (rest of existing generation methods remain the same) ...
 
     async generateImage() {
         const prompt = this.promptInput.value.trim();
